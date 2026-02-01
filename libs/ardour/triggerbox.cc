@@ -3973,8 +3973,8 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 			/* KAM - iterate through buf */
 			Evoral::Event<MidiBuffer::TimeType> ev (*i, false);
 			
-			if (ev.time() > nframes) {
-				/* KAM - event is beyond our endpoint, so don't process it */
+			if (ev.time() <= offset || ev.time() > nframes) {
+				/* KAM - event is outside our range, so don't process it */
 				break;
 			}
 
