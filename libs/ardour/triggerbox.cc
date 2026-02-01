@@ -3969,7 +3969,6 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 		          notes that are already on as we start recording).
 		*/
 		
-		DEBUG_TRACE (DEBUG::Triggers, string_compose ("Capturing with buffer start: %1 start+offset: %2 end: %3\n", start_sample, start_sample + offset, nframes));
 		for (MidiBuffer::iterator i = buf.begin(); i != buf.end(); ++i) {
 			/* KAM - iterate through buf */
 			Evoral::Event<MidiBuffer::TimeType> ev (*i, false);
@@ -3979,8 +3978,8 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 				break;
 			}
 
-			/* KAM - After this, we are processing */
-			DEBUG_TRACE (DEBUG::Triggers, string_compose ("ev.time: %1\n", ev.time()));
+			/* KAM - After this, all events are processed */
+			DEBUG_TRACE (DEBUG::Triggers, string_compose ("KAM - MIDI Event with ev.time: %1 (offset: %2 nframes: %3)\n", ev.time(), offset, nframes));
 
 			bool skip_event = false;
 
