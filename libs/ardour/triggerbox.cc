@@ -3839,9 +3839,24 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 		return;
 	}
 
+	/* KAM - 
+	         Key variables:
+			  - nframes, which is set on entry and appears to be
+	            the number of frames available in the current buffer set. So
+	            offset is the number of frames to skip at the start of the
+	            buffer set before we start capturing.
+			  - offset, which will be set to the number of frames to skip
+			    at the start of the buffer set before we start capturing?
+			  - bufs, which is the BufferSet containing MIDI data to be captured.
+			  - buf, the MidiBuffer within bufs that we are capturing from.
+
+
+	*/
 	pframes_t offset = 0;
 	bool reached_end = false;
 
+	/* KAM - bufs is a real-time MIDI buffer? */
+	
 	if (bufs.count().n_midi() && _record_state != Recording) {
 		/* Keep track of notes that are turned on before we actually start recording */
 		const MidiBuffer& buf = bufs.get_midi (0);
@@ -3896,8 +3911,8 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 
 	if (ai->start_samples >= start_sample && ai->start_samples < end_sample) {
 		/* Let's get going */
-		offset = ai->start_samples - start_sample;
-		nframes -= offset;
+		offset = ai->start_samples - start_sample; /* KAM - set offset into current buffer */
+		nframes -= offset; /* KAM - adjust nframes to account for offset (i.e. reduce the length of the buffer we're capturing) */
 		_record_state = Recording;
 		did_start_recording = true;
 		RecEnableChanged(); /* EMIT SIGNAL */
@@ -3933,7 +3948,7 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 
 		/* MIDI */
 
-		MidiBuffer& buf    = bufs.get_midi (0);
+		MidiBuffer& buf    = bufs.get_midi (0); /* KAM - get the first MIDI buffer? */
 		Track* trk = static_cast<Track*> (_owner);
 		MidiTrack* mt = dynamic_cast<MidiTrack*>(trk);
 		MidiChannelFilter* filter = mt ? &mt->capture_filter() : 0;
@@ -3945,11 +3960,27 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 			ai->tracker.flush_notes<samplepos_t> (_gui_feed_fifo, 0, true);
 		}
 
+		/* KAM - This appears to be the main capture loop for MIDI events.
+		         It seems to iterate through the MIDI buffer 'buf' and if the MIDI event time greater than
+		          nframes, it breaks out of the loop, stopping further processing of events.
+
+				  So we have a buffer 'buf' containing MIDI events, an offset into that buffer, and a number of frames 'nframes' to process.
+				  This suggests the buffer contains MIDI events that are before the the start of the recording (which is how we catch
+		          notes that are already on as we start recording).
+		*/
+		
+		DEBUG_TRACE (DEBUG::Triggers, string_compose ("Capturing with buffer start: %1 start+offset: %2 end: %3\n", start_sample, start_sample + offset, nframes));
 		for (MidiBuffer::iterator i = buf.begin(); i != buf.end(); ++i) {
+			/* KAM - iterate through buf */
 			Evoral::Event<MidiBuffer::TimeType> ev (*i, false);
+			
 			if (ev.time() > nframes) {
+				/* KAM - event is beyond our endpoint, so don't process it */
 				break;
 			}
+
+			/* KAM - After this, we are processing */
+			DEBUG_TRACE (DEBUG::Triggers, string_compose ("ev.time: %1\n", ev.time()));
 
 			bool skip_event = false;
 
