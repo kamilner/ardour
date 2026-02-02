@@ -3973,10 +3973,10 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 			/* KAM - iterate through buf */
 			Evoral::Event<MidiBuffer::TimeType> ev (*i, false);
 			
-			if (ev.time() < offset) {
-				/* KAM - event is before our range, so skip it */
-				continue;
-			}
+			// if (ev.time() < offset) {
+			// 	/* KAM - event is before our range, so skip it */
+			// 	continue;
+			// }
 
 			if  (ev.time() > nframes) {
 				/* KAM - event is outside our range, so don't process it */
@@ -3984,7 +3984,7 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 			}
 
 			/* KAM - After this, all events are processed */
-			DEBUG_TRACE (DEBUG::Triggers, string_compose ("KAM - MIDI Event with ev.time: %1 (offset: %2 nframes: %3)\n", ev.time(), offset, nframes));
+			// DEBUG_TRACE (DEBUG::Triggers, string_compose ("KAM - MIDI Event with ev.time: %1 (offset: %2 nframes: %3)\n", ev.time(), offset, nframes));
 
 			bool skip_event = false;
 
