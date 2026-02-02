@@ -3776,11 +3776,10 @@ TriggerBox::arm_from_another_thread (Trigger& slot, samplepos_t now, uint32_t ch
 		if we aren't exactly on a boundary now.
 	*/
     							   
-	if (t_beats == now_beats) {
-		t_bbt = tmap->bbt_walk (t_bbt, slot.quantization());
-		t_beats = tmap->quarters_at (t_bbt);
-		t_samples = tmap->sample_at (t_beats);
-	}
+	t_bbt = tmap->bbt_walk (t_bbt, slot.quantization());
+	t_beats = tmap->quarters_at (t_bbt);
+	t_samples = tmap->sample_at (t_beats);
+	
 	DEBUG_TRACE (DEBUG::Triggers, string_compose ("arm_from_another_thread State after count-in adjustment t_beats %1 now_beats %2\n", t_beats, now_beats));
 
 	ai->start_samples = t_samples;
