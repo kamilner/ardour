@@ -3728,6 +3728,48 @@ TriggerBox::TriggerBox (Session& s, DataType dt)
 	_session.config.ParameterChanged.connect_same_thread (*this, std::bind (&TriggerBox::parameter_changed, this, _1));
 }
 
+static void
+calculate_capture_start (SlotArmInfo* ai, samplepos_t now, const char* debug_context = nullptr)
+{
+	using namespace Temporal;
+	TempoMap::SharedPtr tmap (TempoMap::use());
+	Beats now_beats = tmap->quarters_at (timepos_t (now));
+
+	BBT_Argument t_bbt;
+	Beats t_beats;
+	samplepos_t t_samples;
+
+	ai->slot->compute_quantized_transition (now, now_beats, std::numeric_limits<Beats>::max(),
+	                                        t_bbt, t_beats, t_samples, tmap, ai->slot->quantization());
+
+	if (debug_context) {
+		DEBUG_TRACE (DEBUG::Triggers, string_compose ("%1 Initial state t_beats %2 now_beats %3\n", debug_context, t_beats, now_beats));
+	}
+
+	/* 
+	   KAM - t_beats - beat time where recording starts?
+	         now_beats - current beat time
+	         slot.quantization() - quantization setting for the slot being armed
+		Does this mean that if t_beats == now_beats, we are exactly on a quantization
+		boundary, and so we need to move t_beats forward by one quantization unit?
+		If so, what happens if we are off the quantization boundary? Do we not need to
+		adjust t_beats in that case as well?
+		It seems to me we want to be quantised to the next quantisation boundary plus one unit
+		if we aren't exactly on a boundary now.
+	*/
+
+	t_bbt = tmap->bbt_walk (t_bbt, ai->slot->quantization());
+	t_beats = tmap->quarters_at (t_bbt);
+	t_samples = tmap->sample_at (t_beats);
+
+	if (debug_context) {
+		DEBUG_TRACE (DEBUG::Triggers, string_compose ("%1 State after count-in adjustment t_beats %2 now_beats %3\n", debug_context, t_beats, now_beats));
+	}
+
+	ai->start_samples = t_samples;
+	ai->start_beats = t_beats;
+}
+
 void
 TriggerBox::arm_from_another_thread (Trigger& slot, samplepos_t now, uint32_t chans, Temporal::BBT_Offset const & duration)
 {
@@ -3751,39 +3793,7 @@ TriggerBox::arm_from_another_thread (Trigger& slot, samplepos_t now, uint32_t ch
 		ai->stretcher = at->alloc_stretcher ();
 	}
 
-	Beats start_b;
-	Beats end_b;
-	BBT_Argument t_bbt;
-	Beats t_beats;
-	samplepos_t t_samples;
-	TempoMap::SharedPtr tmap (TempoMap::use());
-	Beats now_beats = tmap->quarters_at (timepos_t (now));
-
-	slot.compute_quantized_transition (now, now_beats, std::numeric_limits<Beats>::max(),
-	                                   t_bbt, t_beats, t_samples, tmap, slot.quantization());
-
-	DEBUG_TRACE (DEBUG::Triggers, string_compose ("arm_from_another_thread Initial state t_beats %1 now_beats %2\n", t_beats, now_beats));
-
-	/* 
-	   KAM - t_beats - beat time where recording starts?
-	         now_beats - current beat time
-	         slot.quantization() - quantization setting for the slot being armed
-		Does this mean that if t_beats == now_beats, we are exactly on a quantization
-		boundary, and so we need to move t_beats forward by one quantization unit?
-		If so, what happens if we are off the quantization boundary? Do we not need to
-		adjust t_beats in that case as well?
-		It seems to me we want to be quantised to the next quantisation boundary plus one unit
-		if we aren't exactly on a boundary now.
-	*/
-    							   
-	t_bbt = tmap->bbt_walk (t_bbt, slot.quantization());
-	t_beats = tmap->quarters_at (t_bbt);
-	t_samples = tmap->sample_at (t_beats);
-	
-	DEBUG_TRACE (DEBUG::Triggers, string_compose ("arm_from_another_thread State after count-in adjustment t_beats %1 now_beats %2\n", t_beats, now_beats));
-
-	ai->start_samples = t_samples;
-	ai->start_beats = t_beats;
+	calculate_capture_start (ai, now, "arm_from_another_thread");
 
 	if (duration == Temporal::BBT_Offset()) {
 
@@ -5786,6 +5796,25 @@ TriggerBox::non_realtime_transport_stop (samplepos_t now, bool /*flush*/)
 	}
 
 	fast_forward (_session.cue_events(), now);
+
+	SlotArmInfo* ai = _arm_info.load ();
+
+	if (ai && ai->captured == 0) {
+		using namespace Temporal;
+		Beats duration;
+		bool have_duration = (ai->end_samples != 0);
+
+		if (have_duration) {
+			duration = ai->end_beats - ai->start_beats;
+		}
+
+		calculate_capture_start (ai, now);
+
+		if (have_duration) {
+			ai->end_beats = ai->start_beats + duration;
+			ai->end_samples = timepos_t (ai->end_beats).samples();
+		}
+	}
 }
 
 void
