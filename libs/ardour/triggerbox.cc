@@ -3762,11 +3762,26 @@ TriggerBox::arm_from_another_thread (Trigger& slot, samplepos_t now, uint32_t ch
 	slot.compute_quantized_transition (now, now_beats, std::numeric_limits<Beats>::max(),
 	                                   t_bbt, t_beats, t_samples, tmap, slot.quantization());
 
+	DEBUG_TRACE (DEBUG::Triggers, string_compose ("arm_from_another_thread Initial state t_beats %1 now_beats %2\n", t_beats, now_beats));
+
+	/* 
+	   KAM - t_beats - beat time where recording starts?
+	         now_beats - current beat time
+	         slot.quantization() - quantization setting for the slot being armed
+		Does this mean that if t_beats == now_beats, we are exactly on a quantization
+		boundary, and so we need to move t_beats forward by one quantization unit?
+		If so, what happens if we are off the quantization boundary? Do we not need to
+		adjust t_beats in that case as well?
+		It seems to me we want to be quantised to the next quantisation boundary plus one unit
+		if we aren't exactly on a boundary now.
+	*/
+    							   
 	if (t_beats == now_beats) {
 		t_bbt = tmap->bbt_walk (t_bbt, slot.quantization());
 		t_beats = tmap->quarters_at (t_bbt);
 		t_samples = tmap->sample_at (t_beats);
 	}
+	DEBUG_TRACE (DEBUG::Triggers, string_compose ("arm_from_another_thread State after count-in adjustment t_beats %1 now_beats %2\n", t_beats, now_beats));
 
 	ai->start_samples = t_samples;
 	ai->start_beats = t_beats;
